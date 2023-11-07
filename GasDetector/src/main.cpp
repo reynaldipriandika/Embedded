@@ -153,7 +153,7 @@ void oledData(){
   display.clearDisplay();
   display.setTextSize(3);
   display.setCursor(0, 0); // column row
-  display.print("POT:");
+  display.print("CO:");
 
   display.display();
 }

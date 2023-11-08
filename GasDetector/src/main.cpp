@@ -13,7 +13,7 @@
 #define SCREEN_HEIGHT 32 // Display height 
 
 // Declaration SSD1306 connect to I2C
-#define OLED_RESET -1  // Sharing Arduino reset pin
+#define OLED_RESET -1   // Sharing Arduino reset pin
 #define SCREEN_ADDRESS 0x3C // 0x3C for 128x32
 
 Adafruit_SSD1306 display(SCREEN_WIDTH,SCREEN_HEIGHT,&Wire,OLED_RESET);
@@ -33,17 +33,17 @@ String GScriptID = "AKfycbzXLmbOBJVvaBzZIHXtk8HFcCcx2kDibFZvlCwFZMoFegwwZndMCPJU
 float gasData = 0.0; // Gas Data
 String locData = "L1";
 
-unsigned long prevSendMillis = 0; // Store last time
-const long sendInterval = 2000; // Interval at which to send data
-/*
-unsigned long prevWifiMillis = 0;
-const long wifiInterval = 1000;
-*/
-unsigned long prevGas1Millis = 0;
-const long gas1Interval = 500;
+unsigned long preSendTime = 0; // Store last time
+const long sendPeriod = 2000; // Interval at which to send data
+
+unsigned long preDisplayTime = 0;
+const long displayPeriod = 2000;
+
+unsigned long preGas1Time = 0;
+const long gas1Period = 500;
 
 void sendData(String, float);
-void oledData();
+void displayData();
 
 void setup() {
   Serial.begin(115200);
@@ -52,20 +52,22 @@ void setup() {
     Serial.println(F("SSD1306 failed"));
     for(;;); // Don't proceed, loop forever
   };
-  oledData();
+  display.display();
+  delay(2000);
+  // Clear the buffer
   display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
   display.setTextColor(WHITE);
-  
+
   WiFi.begin(ssid, password); // Connect to WiFi 
   // unsigned long startMillis = millis(); // Start time
 
   Serial.print("Connecting");
   while (WiFi.status() != WL_CONNECTED) { // Waiting connection
-    /*
-    if (startMillis - prevWifiMillis >= wifiInterval) {
+    /*if (startMillis - prevWifiMillis >= wifiInterval) {
       prevWifiMillis = startMillis;
       Serial.print(".");
-      // continue;
     }*/
     delay(1000);
     Serial.print(".");
@@ -79,17 +81,22 @@ void setup() {
 }
 
 void loop() {
-  unsigned long currentMillis = millis(); // Current time
+  unsigned long curTime = millis(); // Current time
   gasData = analogRead(CO); // Read gas value
   // gasData = NAN; // NaN for Debugging
   if (isnan(gasData)) { // Check if any reads failed
-    if (currentMillis - prevGas1Millis >= gas1Interval) {
-      prevGas1Millis = currentMillis;
+    if (curTime - preGas1Time >= gas1Period) {
+      preGas1Time = curTime;
       Serial.println("Failed to read!");
       return;
     }
   }
-
+  if (curTime - preDisplayTime >= displayPeriod){
+    preDisplayTime = curTime;
+    displayData();
+    display.clearDisplay();
+  }
+  // delay(2000);
   if (gasData > gas1Treshold) {
     digitalWrite(BUZZER, LOW); // Turn on BUZZER
   } else digitalWrite (BUZZER, HIGH);
@@ -99,8 +106,8 @@ void loop() {
   Serial.println(Loc); 
   Serial.println(Gas);
 
-  if (currentMillis - prevSendMillis >= sendInterval) {
-    prevSendMillis = currentMillis;
+  if (curTime - preSendTime >= sendPeriod) {
+    preSendTime = curTime;
     sendData(locData, gasData);
   }
 }
@@ -149,11 +156,10 @@ void sendData(String loct, float gas) {
   Serial.println();
 }
 
-void oledData(){
-  display.clearDisplay();
-  display.setTextSize(3);
-  display.setCursor(0, 0); // column row
+void displayData(){
+  display.setCursor(5, 10); // (x, y)
+  display.setTextSize(1);
   display.print("CO:");
-
+  display.println(gasData);
   display.display();
 }

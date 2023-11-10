@@ -20,7 +20,7 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH,SCREEN_HEIGHT,&Wire,OLED_RESET);
 
-const int coTreshold = 400; // Gas treshold
+const int treshold = 400; // Gas treshold
 
 const char* host = "script.google.com"; // Host
 const int httpsPort = 443; // httpsPort
@@ -123,8 +123,7 @@ void loop() {
     displayGas();
     display.clearDisplay();
   }
-  // delay(2000);
-  if (coValue > coTreshold) {
+  if ((coValue > treshold) | (co2Value > treshold)) {
     digitalWrite(BUZZER, LOW); // Turn on BUZZER
   } else digitalWrite (BUZZER, HIGH);
     

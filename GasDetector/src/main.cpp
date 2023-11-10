@@ -7,18 +7,20 @@
 #include <WiFiClientSecure.h>
 // #include <math.h>
 
-#define CO A0     // Pin for the sensor
-#define BUZZER 16 // BUZZER Pin GPIO 16
+#define CO_PIN  14  // GPIO14/D5 for sensor MQ7
+#define CO2_PIN 12  // GPIO12/D6 for sensor MQ135
+#define ANALOG  A0  // Analog Pin
+#define BUZZER  16   // BUZZER Pin GPIO 16
 #define SCREEN_WIDTH 128 // Display width
 #define SCREEN_HEIGHT 32 // Display height 
 
 // Declaration SSD1306 connect to I2C
-#define OLED_RESET -1  // Sharing Arduino reset pin
+#define OLED_RESET -1   // Sharing Arduino reset pin
 #define SCREEN_ADDRESS 0x3C // 0x3C for 128x32
 
 Adafruit_SSD1306 display(SCREEN_WIDTH,SCREEN_HEIGHT,&Wire,OLED_RESET);
 
-const int gas1Treshold = 400; // Gas treshold
+const int coTreshold = 400; // Gas treshold
 
 const char* host = "script.google.com"; // Host
 const int httpsPort = 443; // httpsPort
@@ -30,42 +32,50 @@ WiFiClientSecure client; // WiFiClientSecure object
 // Apps Script Deployment ID
 String GScriptID = "AKfycbzXLmbOBJVvaBzZIHXtk8HFcCcx2kDibFZvlCwFZMoFegwwZndMCPJU7HjmKKRtgP_iTg";
 
-float gasData = 0.0; // Gas Data
-String locData = "L1";
+float coValue = 0.0;     // CO Data
+float co2Data = 0.0;    // CO2 Data
+String locData = "L1";  // Location
 
-unsigned long prevSendMillis = 0; // Store last time
-const long sendInterval = 2000; // Interval at which to send data
-/*
-unsigned long prevWifiMillis = 0;
-const long wifiInterval = 1000;
-*/
-unsigned long prevGas1Millis = 0;
-const long gas1Interval = 500;
+unsigned long lastSendTime = 0; // Store last time
+const long sendPeriod = 2000; // Interval at which to send data
+
+unsigned long lastDisplayTime = 0;
+const long displayPeriod = 2000;
+
+unsigned long lastCOErrTime = 0;
+unsigned long lastCOReadTime = 0;
+const long coErrPeriod = 500;
+const long coReadPeriod = 200;
 
 void sendData(String, float);
-void oledData();
+void displayGas();
+float coRead();
+float co2Read();
 
 void setup() {
   Serial.begin(115200);
   pinMode(BUZZER, OUTPUT);
+  pinMode(CO_PIN, OUTPUT);
+  pinMode(CO2_PIN, OUTPUT);
   if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)){
     Serial.println(F("SSD1306 failed"));
     for(;;); // Don't proceed, loop forever
   };
-  oledData();
+  display.display();
+  // Clear the buffer
   display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
   display.setTextColor(WHITE);
-  
+
   WiFi.begin(ssid, password); // Connect to WiFi 
   // unsigned long startMillis = millis(); // Start time
 
   Serial.print("Connecting");
   while (WiFi.status() != WL_CONNECTED) { // Waiting connection
-    /*
-    if (startMillis - prevWifiMillis >= wifiInterval) {
+    /*if (startMillis - prevWifiMillis >= wifiInterval) {
       prevWifiMillis = startMillis;
       Serial.print(".");
-      // continue;
     }*/
     delay(1000);
     Serial.print(".");
@@ -79,29 +89,37 @@ void setup() {
 }
 
 void loop() {
-  unsigned long currentMillis = millis(); // Current time
-  gasData = analogRead(CO); // Read gas value
-  // gasData = NAN; // NaN for Debugging
-  if (isnan(gasData)) { // Check if any reads failed
-    if (currentMillis - prevGas1Millis >= gas1Interval) {
-      prevGas1Millis = currentMillis;
+  unsigned long currentTime = millis(); // Current time
+  if (currentTime - lastCOReadTime >= coReadPeriod) {
+    lastCOReadTime = currentTime;
+    coValue = coRead(); // Read CO value
+  }
+  // coValue = NAN; // NaN for Debugging
+  if (isnan(coValue)) { // Check if any reads failed
+    if (currentTime - lastCOErrTime >= coErrPeriod) {
+      lastCOErrTime = currentTime;
       Serial.println("Failed to read!");
       return;
     }
   }
-
-  if (gasData > gas1Treshold) {
+  if (currentTime - lastDisplayTime >= displayPeriod){
+    lastDisplayTime = currentTime;
+    displayGas();
+    display.clearDisplay();
+  }
+  // delay(2000);
+  if (coValue > coTreshold) {
     digitalWrite(BUZZER, LOW); // Turn on BUZZER
   } else digitalWrite (BUZZER, HIGH);
     
   String Loc = "Location : " + locData;
-  String Gas = "Gas : " + String(gasData);
+  String Gas = "Gas : " + String(coValue);
   Serial.println(Loc); 
   Serial.println(Gas);
 
-  if (currentMillis - prevSendMillis >= sendInterval) {
-    prevSendMillis = currentMillis;
-    sendData(locData, gasData);
+  if (currentTime - lastSendTime >= sendPeriod) {
+    lastSendTime = currentTime;
+    sendData(locData, coValue);
   }
 }
 
@@ -149,11 +167,21 @@ void sendData(String loct, float gas) {
   Serial.println();
 }
 
-void oledData(){
-  display.clearDisplay();
-  display.setTextSize(3);
-  display.setCursor(0, 0); // column row
+void displayGas(){
+  display.setCursor(5, 10); // (x, y)
+  display.setTextSize(1);
   display.print("CO:");
-
+  display.println(coValue);
   display.display();
+}
+
+float coRead() {
+  digitalWrite(CO_PIN, HIGH); // MQ7 Turn ON
+  digitalWrite(CO2_PIN, LOW); // MQ135 Turn OFF
+  return analogRead(ANALOG);
+}
+float co2Read() {
+  digitalWrite(CO_PIN, LOW); // MQ7 Turn OFF
+  digitalWrite(CO2_PIN, HIGH); // MQ135 Turn ON
+  return analogRead(ANALOG);
 }

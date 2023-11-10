@@ -10,7 +10,7 @@
 #define CO_PIN  14  // GPIO14/D5 for sensor MQ7
 #define CO2_PIN 12  // GPIO12/D6 for sensor MQ135
 #define ANALOG  A0  // Analog Pin
-#define BUZZER  16   // BUZZER Pin GPIO 16
+#define BUZZER  16  // BUZZER Pin GPIO 16
 #define SCREEN_WIDTH 128 // Display width
 #define SCREEN_HEIGHT 32 // Display height 
 
@@ -32,20 +32,25 @@ WiFiClientSecure client; // WiFiClientSecure object
 // Apps Script Deployment ID
 String GScriptID = "AKfycbzXLmbOBJVvaBzZIHXtk8HFcCcx2kDibFZvlCwFZMoFegwwZndMCPJU7HjmKKRtgP_iTg";
 
-float coValue = 0.0;     // CO Data
-float co2Data = 0.0;    // CO2 Data
+float coValue  = 0.0;     // CO Data
+float co2Value = 0.0;    // CO2 Data
 String locData = "L1";  // Location
 
-unsigned long lastSendTime = 0; // Store last time
+unsigned long sendTime = 0; // Store last time
 const long sendPeriod = 2000; // Interval at which to send data
 
-unsigned long lastDisplayTime = 0;
+unsigned long displayTime = 0;
 const long displayPeriod = 2000;
 
-unsigned long lastCOErrTime = 0;
-unsigned long lastCOReadTime = 0;
-const long coErrPeriod = 500;
-const long coReadPeriod = 200;
+unsigned long coETime = 0;
+unsigned long co2ETime= 0;
+unsigned long coTime  = 0;
+unsigned long co2Time = 0;
+
+const long coEPeriod  = 500;
+const long co2EPeriod = 500;
+const long coPeriod   = 200;
+const long co2Period  = 200;
 
 void sendData(String, float);
 void displayGas();
@@ -89,21 +94,32 @@ void setup() {
 }
 
 void loop() {
-  unsigned long currentTime = millis(); // Current time
-  if (currentTime - lastCOReadTime >= coReadPeriod) {
-    lastCOReadTime = currentTime;
+  unsigned long curTime = millis(); // Current time
+  if (curTime - coTime >= coPeriod) {
+    coTime = curTime;
     coValue = coRead(); // Read CO value
   }
   // coValue = NAN; // NaN for Debugging
   if (isnan(coValue)) { // Check if any reads failed
-    if (currentTime - lastCOErrTime >= coErrPeriod) {
-      lastCOErrTime = currentTime;
-      Serial.println("Failed to read!");
+    if (curTime - coETime >= coEPeriod) {
+      coETime = curTime;
+      Serial.println("Failed read CO");
       return;
     }
   }
-  if (currentTime - lastDisplayTime >= displayPeriod){
-    lastDisplayTime = currentTime;
+  if (curTime - co2Time >= co2Period) {
+    co2Time = curTime;
+    co2Value = co2Read(); // Read CO2
+  }
+  if (isnan(co2Value)) { // Failed to read
+    if (curTime - co2ETime >= co2EPeriod) {
+      co2ETime = curTime;
+      Serial.println("Failed read CO2");
+      return;
+    }
+  }
+  if (curTime - displayTime >= displayPeriod){
+    displayTime = curTime;
     displayGas();
     display.clearDisplay();
   }
@@ -117,8 +133,8 @@ void loop() {
   Serial.println(Loc); 
   Serial.println(Gas);
 
-  if (currentTime - lastSendTime >= sendPeriod) {
-    lastSendTime = currentTime;
+  if (curTime - sendTime >= sendPeriod) {
+    sendTime = curTime;
     sendData(locData, coValue);
   }
 }
@@ -172,6 +188,10 @@ void displayGas(){
   display.setTextSize(1);
   display.print("CO:");
   display.println(coValue);
+  
+  display.setCursor(5, 20); // (x, y)
+  display.print("CO2:");
+  display.println(co2Value);
   display.display();
 }
 

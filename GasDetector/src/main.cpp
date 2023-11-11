@@ -32,8 +32,8 @@ WiFiClientSecure client; // WiFiClientSecure object
 // Apps Script Deployment ID
 String GScriptID = "AKfycbzXLmbOBJVvaBzZIHXtk8HFcCcx2kDibFZvlCwFZMoFegwwZndMCPJU7HjmKKRtgP_iTg";
 
-float coValue  = 0.0;     // CO Data
-float co2Value = 0.0;    // CO2 Data
+float coData  = 0.0;     // CO Data
+float co2Data = 0.0;    // CO2 Data
 String locData = "L1";  // Location
 
 unsigned long sendTime = 0; // Store last time
@@ -52,7 +52,7 @@ const long co2EPeriod = 500;
 const long coPeriod   = 200;
 const long co2Period  = 200;
 
-void sendData(String, float);
+void sendData(String, float, float);
 void displayGas();
 float coRead();
 float co2Read();
@@ -97,10 +97,10 @@ void loop() {
   unsigned long curTime = millis(); // Current time
   if (curTime - coTime >= coPeriod) {
     coTime = curTime;
-    coValue = coRead(); // Read CO value
+    coData = coRead(); // Read CO value
   }
-  // coValue = NAN; // NaN for Debugging
-  if (isnan(coValue)) { // Check if any reads failed
+  // coData = NAN; // NaN for Debugging
+  if (isnan(coData)) { // Check if any reads failed
     if (curTime - coETime >= coEPeriod) {
       coETime = curTime;
       Serial.println("Failed read CO");
@@ -109,9 +109,9 @@ void loop() {
   }
   if (curTime - co2Time >= co2Period) {
     co2Time = curTime;
-    co2Value = co2Read(); // Read CO2
+    co2Data = co2Read(); // Read CO2
   }
-  if (isnan(co2Value)) { // Failed to read
+  if (isnan(co2Data)) { // Failed to read
     if (curTime - co2ETime >= co2EPeriod) {
       co2ETime = curTime;
       Serial.println("Failed read CO2");
@@ -123,22 +123,24 @@ void loop() {
     displayGas();
     display.clearDisplay();
   }
-  if ((coValue > treshold) | (co2Value > treshold)) {
+  if ((coData > treshold) | (co2Data > treshold)) {
     digitalWrite(BUZZER, LOW); // Turn on BUZZER
   } else digitalWrite (BUZZER, HIGH);
     
-  String Loc = "Location : " + locData;
-  String Gas = "Gas : " + String(coValue);
-  Serial.println(Loc); 
-  Serial.println(Gas);
+  String locStr = "Location: " + locData;
+  String coStr = "CO: "   + String(coData);
+  String co2Str = "CO2: " + String(co2Data);
+  Serial.println(locStr); 
+  Serial.println(coStr);
+  Serial.println(co2Str);
 
   if (curTime - sendTime >= sendPeriod) {
     sendTime = curTime;
-    sendData(locData, coValue);
+    sendData(locData, coData, co2Data);
   }
 }
 
-void sendData(String loct, float gas) {
+void sendData(String loct, float co, float co2) {
   Serial.println("==========");
   Serial.print("Connecting to ");
   Serial.println(host);
@@ -150,10 +152,12 @@ void sendData(String loct, float gas) {
   }
 
   // Processing and sending data
-  String string_gas = String(gas);
+  String string_co = String(co);
+  String string_co2 = String(co2);
   String url = "/macros/s/" + GScriptID 
    + "/exec?locData=" + loct
-   + "&gasData=" + string_gas; 
+   + "&coData="  + string_co    // Send CO data 
+   + "&co2Data=" + string_co2;  // Send CO2 data
   Serial.print("requesting URL: ");
   Serial.println(url);
   
@@ -186,11 +190,11 @@ void displayGas(){
   display.setCursor(5, 10); // (x, y)
   display.setTextSize(1);
   display.print("CO:");
-  display.println(coValue);
+  display.println(coData);
   
   display.setCursor(5, 20); // (x, y)
   display.print("CO2:");
-  display.println(co2Value);
+  display.println(co2Data);
   display.display();
 }
 
